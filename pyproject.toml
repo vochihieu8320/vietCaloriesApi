@@ -1,0 +1,10 @@
+[tool.pytest.ini_options]
+markers = [
+    "live: tests that hit real OpenAI API (skipped by default; opt in with -m live)"
+]
+addopts = "-m 'not live'"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
