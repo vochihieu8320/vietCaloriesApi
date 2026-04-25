@@ -1,3 +1,10 @@
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+from .schemas.nutrition import ErrorResponse
+
+
 class AppError(Exception):
     error_code: str = "APP_ERROR"
     message: str = "An error occurred."
@@ -37,13 +44,6 @@ class RateLimitedError(AppError):
     error_code = "RATE_LIMITED"
     message = "Too many requests. Please retry after a short delay."
     http_status = 429
-
-
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-
-from .schemas.nutrition import ErrorResponse
 
 
 def register_handlers(app: FastAPI) -> None:
