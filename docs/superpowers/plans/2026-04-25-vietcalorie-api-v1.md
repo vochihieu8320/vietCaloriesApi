@@ -6,7 +6,7 @@
 
 **Architecture:** Stateless REST API. Pure validation in `services/image.py`, OpenAI integration behind a DI seam in `services/vision.py`, FastAPI route layer in `routes/analyze.py`. AppError exception hierarchy mapped to PRD error codes by a single handler. Tests are mocked by default; opt-in `pytest -m live` hits real GPT-4o.
 
-**Tech Stack:** Python 3.12, FastAPI, Pydantic v2, pydantic-settings, Pillow, OpenAI SDK, pytest, ruff.
+**Tech Stack:** Python 3.13, FastAPI, Pydantic v2, pydantic-settings, Pillow, OpenAI SDK, pytest, ruff.
 
 **Spec reference:** `docs/superpowers/specs/2026-04-25-vietcalorie-api-design.md`
 
@@ -70,7 +70,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py313"
 ```
 
 - [ ] **Step 3: Create `.env.example`**
@@ -95,7 +95,7 @@ Create `tests/fixtures/.gitkeep` as an empty file (placeholder so the directory 
 
 Run:
 ```bash
-python3.12 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 pip install -r requirements.txt
@@ -1255,13 +1255,13 @@ Local-first FastAPI backend that estimates nutrition (calories, carbs, fat, prot
 
 ## Requirements
 
-- Python 3.12
+- Python 3.13
 - An OpenAI API key with access to `gpt-4o`
 
 ## Setup
 
 ```bash
-python3.12 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
