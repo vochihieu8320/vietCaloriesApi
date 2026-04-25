@@ -74,7 +74,8 @@ Error response:
 | 400 | `INVALID_IMAGE` | Decode fails, file > 10 MB, dimensions < 100×100, malformed payload |
 | 422 | `UNSUPPORTED_FORMAT` | MIME type not JPEG/PNG/WEBP |
 | 400 | `NO_FOOD_DETECTED` | GPT-4o couldn't identify food |
-| 429 | `RATE_LIMITED` | OpenAI rate limit hit |
+| 429 | `RATE_LIMITED` | OpenAI rate limit hit (too many requests per minute) |
+| 429 | `INSUFFICIENT_QUOTA` | OpenAI account has no remaining credits — add billing |
 | 500 | `LLM_ERROR` | OpenAI failure or unparseable response |
 
 ## Tests
