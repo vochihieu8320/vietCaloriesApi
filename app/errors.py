@@ -37,3 +37,29 @@ class RateLimitedError(AppError):
     error_code = "RATE_LIMITED"
     message = "Too many requests. Please retry after a short delay."
     http_status = 429
+
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+from .schemas.nutrition import ErrorResponse
+
+
+def register_handlers(app: FastAPI) -> None:
+    @app.exception_handler(AppError)
+    async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.http_status,
+            content=ErrorResponse(error=exc.message, error_code=exc.error_code).model_dump(),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content=ErrorResponse(
+                error="Request payload is invalid or malformed.",
+                error_code="INVALID_IMAGE",
+            ).model_dump(),
+        )
