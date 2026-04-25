@@ -29,7 +29,7 @@ A backend REST API that accepts a food image and returns an estimated nutritiona
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Language | Python 3.12 | |
+| Language | Python 3.13 | |
 | API framework | FastAPI | Async, auto OpenAPI docs at `/docs` |
 | ASGI server | Uvicorn | Run with `--reload` in dev |
 | AI vision | OpenAI Python SDK → GPT-4o (`gpt-4o`) | |

@@ -71,6 +71,8 @@ class OpenAIVisionClient:
         except OpenAIError as exc:
             raise LLMError(f"OpenAI call failed: {exc}") from exc
 
+        if not response.choices:
+            raise LLMError("OpenAI returned no choices in response.")
         raw = response.choices[0].message.content or ""
         cleaned = _strip_fences(raw)
 
@@ -92,6 +94,6 @@ def get_vision_client(settings: Settings | None = None) -> OpenAIVisionClient:
     if settings is None:
         settings = get_settings()
     return OpenAIVisionClient(
-        client=OpenAI(api_key=settings.openai_api_key),
+        client=OpenAI(api_key=settings.openai_api_key, timeout=30.0),
         model=settings.openai_model,
     )

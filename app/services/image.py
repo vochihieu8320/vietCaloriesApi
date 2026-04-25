@@ -28,7 +28,7 @@ def validate_and_normalize(image_bytes: bytes, media_type: str) -> tuple[bytes, 
     try:
         image = Image.open(io.BytesIO(image_bytes))
         image.load()
-    except (UnidentifiedImageError, OSError) as exc:
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
         raise InvalidImageError(f"Could not decode image: {exc}") from exc
 
     width, height = image.size

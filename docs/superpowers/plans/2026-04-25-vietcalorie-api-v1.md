@@ -105,7 +105,7 @@ Expected: clean install, no errors. The venv goes in `.venv/` which `.gitignore`
 - [ ] **Step 6: Verify pytest discovery works**
 
 Run: `pytest --collect-only`
-Expected: exits 0 (no tests yet, that's fine — just confirms config is valid).
+Expected: exits 5 (pytest's "no tests collected" code, NOT 0). This is normal for an empty test suite and confirms the config is valid.
 
 - [ ] **Step 7: Commit**
 

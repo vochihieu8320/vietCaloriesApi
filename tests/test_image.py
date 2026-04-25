@@ -73,3 +73,11 @@ def test_passthrough_webp_re_encodes_to_jpeg():
     out_bytes, media_type = validate_and_normalize(img_bytes, "image/webp")
     assert media_type == "image/jpeg"
     assert len(out_bytes) > 0
+
+
+def test_decompression_bomb_rejected(monkeypatch):
+    # Lower Pillow's decompression-bomb threshold so a modest image trips it.
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 10_000)
+    img_bytes = _make_image_bytes(200, 200)  # 40,000 pixels — exceeds the lowered cap
+    with pytest.raises(InvalidImageError):
+        validate_and_normalize(img_bytes, "image/jpeg")

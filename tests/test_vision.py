@@ -100,3 +100,11 @@ def test_sends_data_url_with_correct_media_type(vision, fake_openai):
     user_content = call_kwargs["messages"][1]["content"]
     image_url = next(c for c in user_content if c["type"] == "image_url")["image_url"]["url"]
     assert image_url.startswith("data:image/jpeg;base64,")
+
+
+def test_empty_choices_raises_llm_error(vision, fake_openai):
+    response = MagicMock()
+    response.choices = []
+    fake_openai.chat.completions.create.return_value = response
+    with pytest.raises(LLMError):
+        vision.analyze_food(b"x", "image/jpeg")

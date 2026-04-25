@@ -3,6 +3,7 @@ import binascii
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
+from pydantic import ValidationError
 
 from ..errors import InvalidImageError, UnsupportedFormatError
 from ..schemas.nutrition import AnalyzeRequestBase64, AnalyzeResponse
@@ -31,7 +32,7 @@ async def analyze(
             raise InvalidImageError("Request body must be a JSON object.")
         try:
             payload = AnalyzeRequestBase64(**body)
-        except Exception as exc:
+        except ValidationError as exc:
             raise InvalidImageError(f"Invalid JSON body: {exc}") from exc
         try:
             image_bytes = base64.b64decode(payload.image_base64, validate=True)
