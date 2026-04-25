@@ -46,6 +46,15 @@ class RateLimitedError(AppError):
     http_status = 429
 
 
+class InsufficientQuotaError(AppError):
+    error_code = "INSUFFICIENT_QUOTA"
+    message = (
+        "OpenAI account has no remaining quota. Add billing or buy credits at "
+        "https://platform.openai.com/settings/organization/billing"
+    )
+    http_status = 429
+
+
 def register_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:

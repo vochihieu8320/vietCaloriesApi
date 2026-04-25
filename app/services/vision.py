@@ -7,7 +7,7 @@ from openai import OpenAI, OpenAIError, RateLimitError
 from pydantic import ValidationError
 
 from ..config import Settings, get_settings
-from ..errors import LLMError, NoFoodDetectedError, RateLimitedError
+from ..errors import InsufficientQuotaError, LLMError, NoFoodDetectedError, RateLimitedError
 from ..schemas.nutrition import AnalyzeResponse
 
 
@@ -43,6 +43,15 @@ def _strip_fences(text: str) -> str:
     return _FENCE_RE.sub("", text).strip()
 
 
+def _is_quota_exhausted(exc: RateLimitError) -> bool:
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        err = body.get("error")
+        if isinstance(err, dict) and err.get("code") == "insufficient_quota":
+            return True
+    return "insufficient_quota" in str(exc)
+
+
 class OpenAIVisionClient:
     def __init__(self, client: OpenAI, model: str):
         self._client = client
@@ -67,6 +76,8 @@ class OpenAIVisionClient:
                 ],
             )
         except RateLimitError as exc:
+            if _is_quota_exhausted(exc):
+                raise InsufficientQuotaError() from exc
             raise RateLimitedError(str(exc)) from exc
         except OpenAIError as exc:
             raise LLMError(f"OpenAI call failed: {exc}") from exc

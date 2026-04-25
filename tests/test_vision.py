@@ -9,7 +9,7 @@ from openai import OpenAIError, RateLimitError
 # ensure config import doesn't fail
 os.environ.setdefault("OPENAI_API_KEY", "test-key-not-real")
 
-from app.errors import LLMError, NoFoodDetectedError, RateLimitedError
+from app.errors import InsufficientQuotaError, LLMError, NoFoodDetectedError, RateLimitedError
 from app.services.vision import OpenAIVisionClient
 
 
@@ -32,6 +32,19 @@ def _make_rate_limit_error() -> RateLimitError:
     request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
     response = httpx.Response(429, request=request)
     return RateLimitError("rate limited", response=response, body={"error": "rate limited"})
+
+
+def _make_quota_error() -> RateLimitError:
+    request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+    response = httpx.Response(429, request=request)
+    body = {
+        "error": {
+            "message": "You exceeded your current quota",
+            "type": "insufficient_quota",
+            "code": "insufficient_quota",
+        }
+    }
+    return RateLimitError("insufficient_quota", response=response, body=body)
 
 
 @pytest.fixture
@@ -107,4 +120,10 @@ def test_empty_choices_raises_llm_error(vision, fake_openai):
     response.choices = []
     fake_openai.chat.completions.create.return_value = response
     with pytest.raises(LLMError):
+        vision.analyze_food(b"x", "image/jpeg")
+
+
+def test_quota_exhausted_translated_to_insufficient_quota(vision, fake_openai):
+    fake_openai.chat.completions.create.side_effect = _make_quota_error()
+    with pytest.raises(InsufficientQuotaError):
         vision.analyze_food(b"x", "image/jpeg")
