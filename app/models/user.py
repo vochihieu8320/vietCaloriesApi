@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, func
@@ -24,8 +23,8 @@ class User(Base):
         primary_key=True,
     )
     email: Mapped[str] = mapped_column(String, nullable=False)
-    display_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
-    avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
