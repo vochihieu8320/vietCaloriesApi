@@ -19,7 +19,7 @@ class User(Base):
 
     id: Mapped[UUID] = mapped_column(
         PgUUID(as_uuid=True),
-        ForeignKey("auth.users.id", ondelete="CASCADE"),
+        ForeignKey("auth.users.id", ondelete="CASCADE", use_alter=True),
         primary_key=True,
     )
     email: Mapped[str] = mapped_column(String, nullable=False)
