@@ -311,10 +311,12 @@ final accessToken = session?.accessToken;  // attach this to API calls
 ### Sending requests to the API
 
 ```
-GET /me HTTP/1.1
+GET /api/v1/me HTTP/1.1
 Host: <api host>
 Authorization: Bearer <session.accessToken>
 ```
+
+All API endpoints live under `/api/v1`. Earlier section 9 of this document uses the prefix; the example here is updated to match.
 
 The Supabase SDK automatically refreshes `session.accessToken` before expiry. The mobile app should always read the current token off `supabase.auth.currentSession` per request, not cache it manually.
 
