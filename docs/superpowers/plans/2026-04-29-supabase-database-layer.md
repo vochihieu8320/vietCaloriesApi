@@ -473,42 +473,17 @@ git commit -m "feat(alembic): async migrations setup + initial users table"
 
 ---
 
-## Task 5: Test infrastructure (Docker Postgres + fixtures)
+## Task 5: Test infrastructure (Supabase test project + savepoint fixtures)
 
 **Files:**
-- Create: `docker-compose.yml`
 - Create: `tests/db_conftest.py`
-- Modify: `tests/conftest.py`
 - Modify: `pyproject.toml`
 
-- [ ] **Step 1: Create `docker-compose.yml`**
+> **Strategy change vs. the original plan:** Instead of a Docker Postgres, integration tests run against the real Supabase test project (whose URLs are already in `.env`). Each test runs inside an outer transaction that is **rolled back at the end**, so the schema (created by `alembic upgrade head`) and any unrelated rows are preserved. This works because SQLAlchemy's `AsyncSession(join_transaction_mode="create_savepoint")` makes the test code's `await session.commit()` calls land on a savepoint inside the outer transaction. The migration must already have been applied (it has — see Task 4 verification).
 
-```yaml
-services:
-  test-db:
-    image: postgres:16-alpine
-    container_name: vietcalorie-test-db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: vietcalorie_test
-    ports:
-      - "5433:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d vietcalorie_test"]
-      interval: 2s
-      timeout: 2s
-      retries: 10
-```
+> **Pre-requisite:** `alembic upgrade head` has been run against the test project so `public.users` exists. (Already done.)
 
-- [ ] **Step 2: Start the test database**
-
-Run: `docker compose up -d test-db`
-Expected: container `vietcalorie-test-db` running.
-
-Verify: `docker compose ps test-db` shows `healthy`.
-
-- [ ] **Step 3: Configure pytest-asyncio in `pyproject.toml`**
+- [ ] **Step 1: Configure pytest-asyncio + markers in `pyproject.toml`**
 
 Replace the `[tool.pytest.ini_options]` block in `pyproject.toml` with:
 
@@ -517,132 +492,148 @@ Replace the `[tool.pytest.ini_options]` block in `pyproject.toml` with:
 asyncio_mode = "auto"
 markers = [
     "live: tests that hit real OpenAI API (skipped by default; opt in with -m live)",
-    "db: integration tests that require the test Postgres (Docker)",
+    "db: integration tests that need the Supabase test project DB",
 ]
 addopts = "-m 'not live'"
 testpaths = ["tests"]
 ```
 
-- [ ] **Step 4: Update `tests/conftest.py` to set DB + auth env**
+- [ ] **Step 2: Leave `tests/conftest.py` as-is**
 
-Add the four new env defaults at the top of `tests/conftest.py` (right under the existing `OPENAI_API_KEY` line):
+`Settings()` already loads from `.env`, which now has real DB + JWT values. No `os.environ.setdefault` for DB vars is needed. The existing `OPENAI_API_KEY` setdefault stays.
 
-```python
-import os
-
-# Set BEFORE importing app modules so config loads cleanly
-os.environ.setdefault("OPENAI_API_KEY", "test-key-not-real")
-os.environ.setdefault(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5433/vietcalorie_test",
-)
-os.environ.setdefault(
-    "DATABASE_URL_DIRECT",
-    "postgresql+asyncpg://postgres:postgres@localhost:5433/vietcalorie_test",
-)
-os.environ.setdefault("SUPABASE_JWT_SECRET", "test-jwt-secret-do-not-use-in-prod")
-os.environ.setdefault("SUPABASE_JWT_AUDIENCE", "authenticated")
-```
-
-Leave the rest of the file alone.
-
-- [ ] **Step 5: Create `tests/db_conftest.py`**
+- [ ] **Step 3: Create `tests/db_conftest.py`**
 
 ```python
-"""DB-related fixtures. Imported by tests that need a real Postgres."""
+"""DB-related fixtures for tests that hit the Supabase test project.
+
+Each test runs inside an outer transaction that is rolled back at the end,
+so committed rows in public.users / auth.users disappear after the test.
+The schema is NOT recreated per test — Alembic owns it.
+"""
 
 from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
 import pytest_asyncio
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from app.config import get_settings
-from app.db.base import Base
-from app import models  # noqa: F401  -- registers User on Base.metadata
 
 
 @pytest_asyncio.fixture(scope="session")
-async def test_engine():
+async def test_engine() -> AsyncIterator[AsyncEngine]:
+    """Session-wide engine pointed at the direct (port 5432) URL.
+
+    The pooler is in transaction mode and breaks long savepoint-bearing transactions,
+    so tests use the direct URL.
+    """
     settings = get_settings()
-    engine = create_async_engine(
-        settings.database_url,
-        connect_args={
-            "statement_cache_size": 0,
-            "prepared_statement_cache_size": 0,
-        },
-    )
-    async with engine.begin() as conn:
-        # Stub auth.users so the FK on public.users can resolve.
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS auth"))
-        await conn.execute(
-            text(
-                "CREATE TABLE IF NOT EXISTS auth.users ("
-                "id uuid PRIMARY KEY, email text"
-                ")"
-            )
-        )
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+    engine = create_async_engine(settings.database_url_direct)
     yield engine
     await engine.dispose()
 
 
 @pytest_asyncio.fixture
-async def db_session(test_engine) -> AsyncIterator[AsyncSession]:
-    """Per-test session with rollback isolation."""
-    factory = async_sessionmaker(test_engine, expire_on_commit=False)
-    async with factory() as session:
-        yield session
-        await session.rollback()
-        # Wipe any committed rows between tests.
-        async with test_engine.begin() as conn:
-            await conn.execute(text("TRUNCATE public.users CASCADE"))
-            await conn.execute(text("TRUNCATE auth.users CASCADE"))
+async def db_session(test_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
+    """Per-test session bound to an outer transaction; everything rolls back at the end.
+
+    Uses SQLAlchemy's `join_transaction_mode="create_savepoint"`, so any
+    `await session.commit()` inside test or app code becomes a SAVEPOINT release
+    rather than a real commit — and the outer rollback wipes the lot.
+    """
+    async with test_engine.connect() as connection:
+        outer_tx = await connection.begin()
+        session = AsyncSession(
+            bind=connection,
+            expire_on_commit=False,
+            join_transaction_mode="create_savepoint",
+        )
+        try:
+            yield session
+        finally:
+            await session.close()
+            await outer_tx.rollback()
 
 
 @pytest_asyncio.fixture
-async def auth_user_id(test_engine) -> UUID:
-    """Insert a stub auth.users row and return its id, so FK-referencing tests can use it."""
+async def auth_user_id(db_session: AsyncSession) -> UUID:
+    """Insert a stub auth.users row inside the test transaction; rolled back automatically.
+
+    auth.users.id is the only NOT NULL column without a default we need to set;
+    `is_sso_user` and `is_anonymous` default to false, `email` is nullable.
+    """
     user_id = uuid4()
-    async with test_engine.begin() as conn:
-        await conn.execute(
-            text("INSERT INTO auth.users (id, email) VALUES (:id, :email)"),
-            {"id": str(user_id), "email": f"{user_id}@example.com"},
-        )
+    await db_session.execute(
+        text("INSERT INTO auth.users (id, email) VALUES (:id, :email)"),
+        {"id": str(user_id), "email": f"{user_id}@example.com"},
+    )
+    await db_session.flush()
     return user_id
 ```
 
-- [ ] **Step 6: Verify the test DB connects**
+- [ ] **Step 4: Verify the fixtures connect**
 
-Create a tiny throwaway test:
-
-`tests/test_db_smoke.py`:
+Create a throwaway test at `tests/test_db_smoke.py`:
 
 ```python
 import pytest
+from sqlalchemy import text
 
+pytest_plugins = ["tests.db_conftest"]
 pytestmark = pytest.mark.db
 
 
-async def test_db_connects(test_engine):
-    from sqlalchemy import text
+async def test_engine_connects(test_engine):
     async with test_engine.connect() as conn:
         result = await conn.execute(text("SELECT 1"))
         assert result.scalar() == 1
+
+
+async def test_session_rolls_back(db_session, auth_user_id):
+    # Confirm the auth.users stub is visible inside the test transaction.
+    found = await db_session.execute(
+        text("SELECT id FROM auth.users WHERE id = :id"),
+        {"id": str(auth_user_id)},
+    )
+    assert found.scalar() == auth_user_id
 ```
 
-Run: `pytest tests/test_db_smoke.py -v`
-Expected: PASS.
+Run: `/Users/hieuvo/Documents/vietcalorie-api/.venv/bin/pytest tests/test_db_smoke.py -v`
+Expected: 2 PASS.
 
-Then delete `tests/test_db_smoke.py` — it was a smoke test only.
+After it passes, delete `tests/test_db_smoke.py` — it was a smoke test only.
 
-- [ ] **Step 7: Commit**
+Also confirm that AFTER the test, the `auth_user_id` is gone from the real DB (rollback worked). Run:
 
 ```bash
-git add docker-compose.yml tests/db_conftest.py tests/conftest.py pyproject.toml
-git commit -m "test: add docker postgres + db fixtures"
+/Users/hieuvo/Documents/vietcalorie-api/.venv/bin/python -c "
+import asyncio
+from app.config import get_settings
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy import text
+
+async def main():
+    eng = create_async_engine(get_settings().database_url_direct)
+    async with eng.connect() as c:
+        n = await c.scalar(text('SELECT count(*) FROM auth.users'))
+        print(f'auth.users row count: {n}')
+        n2 = await c.scalar(text('SELECT count(*) FROM public.users'))
+        print(f'public.users row count: {n2}')
+    await eng.dispose()
+
+asyncio.run(main())
+"
+```
+
+Expected: both counts are `0` (or whatever they were before the test ran — definitely no leftover rows from the test).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tests/db_conftest.py pyproject.toml
+git commit -m "test: add savepoint-based db fixtures pointing at supabase test project"
 ```
 
 ---
