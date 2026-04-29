@@ -1,6 +1,10 @@
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 markers = [
-    "live: tests that hit real OpenAI API (skipped by default; opt in with -m live)"
+    "live: tests that hit real OpenAI API (skipped by default; opt in with -m live)",
+    "db: integration tests that need the Supabase test project DB",
 ]
 addopts = "-m 'not live'"
 testpaths = ["tests"]
