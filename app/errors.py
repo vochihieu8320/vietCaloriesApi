@@ -55,6 +55,18 @@ class InsufficientQuotaError(AppError):
     http_status = 429
 
 
+class UnauthorizedError(AppError):
+    error_code = "UNAUTHORIZED"
+    message = "Missing or invalid Authorization token."
+    http_status = 401
+
+
+class DatabaseError(AppError):
+    error_code = "DATABASE_ERROR"
+    message = "Database operation failed."
+    http_status = 500
+
+
 def register_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
