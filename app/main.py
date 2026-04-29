@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .errors import register_handlers
-from .routes import analyze
+from .routes import analyze, me
 
 
 def create_app() -> FastAPI:
@@ -14,7 +14,6 @@ def create_app() -> FastAPI:
         version="1.0.0",
     )
 
-    # CORS open in dev. For production, set Settings.cors_origins to your allowlist.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -25,6 +24,7 @@ def create_app() -> FastAPI:
 
     register_handlers(app)
     app.include_router(analyze.router)
+    app.include_router(me.router)
 
     @app.get("/healthz", tags=["meta"])
     async def healthz() -> dict[str, str]:
