@@ -16,7 +16,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Inject the direct (port 5432) URL from Settings — pooler URL doesn't play nice with DDL.
-config.set_main_option("sqlalchemy.url", get_settings().database_url_direct)
+# Double % to escape ConfigParser interpolation (URL-encoded passwords contain %xx).
+config.set_main_option(
+    "sqlalchemy.url", get_settings().database_url_direct.replace("%", "%%")
+)
 
 target_metadata = Base.metadata
 
