@@ -67,6 +67,12 @@ class DatabaseError(AppError):
     http_status = 500
 
 
+class NotFoundError(AppError):
+    error_code = "NOT_FOUND"
+    message = "Resource not found."
+    http_status = 404
+
+
 def register_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
