@@ -55,6 +55,24 @@ class InsufficientQuotaError(AppError):
     http_status = 429
 
 
+class UnauthorizedError(AppError):
+    error_code = "UNAUTHORIZED"
+    message = "Missing or invalid Authorization token."
+    http_status = 401
+
+
+class DatabaseError(AppError):
+    error_code = "DATABASE_ERROR"
+    message = "Database operation failed."
+    http_status = 500
+
+
+class NotFoundError(AppError):
+    error_code = "NOT_FOUND"
+    message = "Resource not found."
+    http_status = 404
+
+
 def register_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
@@ -65,6 +83,19 @@ def register_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        # TEMP debug: log validation failures so we can see *which* field broke.
+        # Read the raw body so we can see whether dio actually sent JSON.
+        try:
+            body_bytes = await request.body()
+            preview = body_bytes[:500].decode("utf-8", errors="replace")
+        except Exception as exc_inner:  # noqa: BLE001
+            preview = f"<read failed: {exc_inner}>"
+        print(
+            f"[VALIDATION 400] {request.method} {request.url.path} "
+            f"ct={request.headers.get('content-type')!r} "
+            f"len={request.headers.get('content-length')!r} "
+            f"errors={exc.errors()} body={preview!r}"
+        )
         return JSONResponse(
             status_code=400,
             content=ErrorResponse(
