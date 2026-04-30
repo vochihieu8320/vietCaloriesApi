@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     database_url_direct: str  # asyncpg URL via direct host (port 5432) — Alembic only
 
     # Supabase Auth
-    supabase_jwt_secret: str
+    supabase_url: str  # e.g. https://<project-ref>.supabase.co — used to fetch JWKS
+    supabase_jwt_secret: str  # legacy HS256 fallback (still set; unused when JWKS verifies)
     supabase_jwt_audience: str = "authenticated"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

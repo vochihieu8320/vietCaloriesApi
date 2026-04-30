@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .errors import register_handlers
-from .routes import analyze, me
+from .routes import analyze, coach, me, meals, water
 
 
 def create_app() -> FastAPI:
@@ -24,7 +24,10 @@ def create_app() -> FastAPI:
 
     register_handlers(app)
     app.include_router(analyze.router)
+    app.include_router(coach.router)
     app.include_router(me.router)
+    app.include_router(meals.router)
+    app.include_router(water.router)
 
     @app.get("/healthz", tags=["meta"])
     async def healthz() -> dict[str, str]:
